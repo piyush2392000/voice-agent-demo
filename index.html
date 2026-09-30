@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Talk to Vikash</title>
+<style>
+  :root {
+    --bg: #eceff4; --surface: #fff; --ink: #1c2433; --muted: #667286; --line: #d9dee8;
+    --agent: #4a55d6; --agent-soft: #e6e8fb; --on-agent: #fff; --you: #1c2433;
+    --call: #2f7d5b; --end: #c4453a; --level: 0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #10151f; --surface: #171f2e; --ink: #e8edf5; --muted: #8b97ab; --line: #263045;
+      --agent: #8a94f5; --agent-soft: #232b4d; --on-agent: #10151f; --you: #2d3a52; --call: #3f9c74; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink);
+    font-family: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: flex; flex-direction: column;
+    --ringc: color-mix(in srgb, var(--call) 26%, transparent);
+  }
+  body[data-state="speaking"] { --ringc: color-mix(in srgb, var(--agent) 30%, transparent); }
+
+  .top { display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.5rem; border-bottom: 1px solid var(--line); }
+  .brand { display: flex; align-items: center; gap: .6rem; font-weight: 600; }
+  .mark { width: 22px; height: 22px; border-radius: 6px; background: var(--agent); }
+  .tag { color: var(--muted); font-size: .9rem; }
+
+  main { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 1.5rem; padding: 1.5rem; width: 100%; max-width: 1080px; margin: 0 auto; }
+  .stage, .log { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; }
+  .stage { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; padding: 2rem 1.5rem; min-height: 540px; }
+
+  .orb { position: relative; width: 200px; height: 200px; display: grid; place-items: center; }
+  .ring { position: absolute; inset: 0; border-radius: 50%; background: var(--ringc);
+    transform: scale(calc(.68 + var(--level) * .32)); opacity: calc(.15 + var(--level) * .85); transition: transform .08s linear, opacity .08s linear, background .3s; }
+  .ring.outer { inset: -16px; transform: scale(calc(.72 + var(--level) * .28)); opacity: calc(var(--level) * .55); }
+  .avatar { position: relative; width: 128px; height: 128px; border-radius: 50%; background: var(--agent); color: var(--on-agent);
+    display: grid; place-items: center; font-size: 3.2rem; font-weight: 600; }
+  body[data-state="thinking"] .avatar { animation: breathe 1.4s ease-in-out infinite; }
+  @keyframes breathe { 50% { transform: scale(1.05); } }
+
+  h1 { margin: .25rem 0 0; font-size: 1.75rem; font-weight: 600; letter-spacing: -.02em; }
+  .role { margin: 0; color: var(--muted); }
+  .status { margin: .25rem 0 0; display: flex; align-items: center; gap: .55rem; font-size: 1rem; font-variant-numeric: tabular-nums; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+  body[data-state="listening"] .dot { background: var(--call); }
+  body[data-state="speaking"] .dot { background: var(--agent); }
+  #timer { color: var(--muted); }
+  #wave { width: 100%; max-width: 320px; height: 56px; }
+
+  .controls { display: grid; grid-template-columns: 52px 84px 52px; align-items: center; gap: 1.25rem; margin-top: .25rem; }
+  button { font: inherit; cursor: pointer; }
+  button:focus-visible { outline: 3px solid var(--ink); outline-offset: 4px; }
+  #call { width: 84px; height: 84px; border-radius: 50%; border: 0; background: var(--call); color: #fff; display: grid; place-items: center; transition: background .25s, transform .15s; }
+  #call:hover { transform: scale(1.05); } #call:active { transform: scale(.97); }
+  #call svg { width: 34px; height: 34px; fill: currentColor; transition: transform .25s; }
+  body.live #call { background: var(--end); } body.live #call svg { transform: rotate(135deg); }
+  #mute { width: 52px; height: 52px; border-radius: 50%; border: 1px solid var(--line); background: transparent; color: var(--ink); display: grid; place-items: center; }
+  #mute svg { width: 22px; height: 22px; fill: currentColor; }
+  #mute:disabled { opacity: .35; cursor: default; }
+  #mute[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+  .lat, .note { min-height: 1.3em; margin: 0; font-size: .88rem; color: var(--muted); }
+  .note { color: var(--end); text-align: center; }
+
+  .log { display: flex; flex-direction: column; min-height: 320px; max-height: calc(100vh - 8rem); }
+  .log h2 { margin: 0; padding: 1rem 1.25rem; font-size: 1rem; font-weight: 600; border-bottom: 1px solid var(--line); }
+  #feed { flex: 1; overflow-y: auto; padding: 1rem 1.25rem; display: flex; flex-direction: column; gap: .6rem; }
+  .empty { margin: auto; max-width: 16rem; text-align: center; color: var(--muted); line-height: 1.5; }
+  .msg { max-width: 88%; padding: .6rem .9rem; border-radius: 16px; line-height: 1.45; font-size: .97rem; }
+  .msg.you { align-self: flex-end; background: var(--you); color: #fff; border-bottom-right-radius: 6px; }
+  .msg.bot { align-self: flex-start; background: var(--agent-soft); border-bottom-left-radius: 6px; }
+  .msg.pending { background: transparent; color: var(--ink); border: 1px dashed var(--muted); opacity: .75; }
+  .msg.cut::after { content: " —"; color: var(--muted); }
+  .typing { display: flex; gap: 4px; padding: .85rem .9rem; }
+  .typing i { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); animation: blink 1s infinite; }
+  .typing i:nth-child(2) { animation-delay: .15s; } .typing i:nth-child(3) { animation-delay: .3s; }
+  @keyframes blink { 50% { opacity: .25; } }
+
+  @media (max-width: 820px) { main { grid-template-columns: 1fr; padding: 1rem; } .stage { min-height: auto; } .log { max-height: none; } }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body data-state="idle">
+  <header class="top">
+    <div class="brand"><span class="mark"></span><span id="company"></span></div>
+    <span class="tag">Live voice agent demo</span>
+  </header>
+
+  <main>
+    <section class="stage">
+      <div class="orb"><div class="ring outer"></div><div class="ring"></div><div class="avatar" id="initial"></div></div>
+      <div style="text-align:center"><h1 id="agent"></h1><p class="role" id="role"></p></div>
+      <p class="status"><span class="dot"></span><span id="status"></span><span id="timer"></span></p>
+      <canvas id="wave" aria-hidden="true"></canvas>
+      <div class="controls">
+        <button id="mute" aria-label="Mute microphone" aria-pressed="false" disabled>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
+        </button>
+        <button id="call" aria-label="Start call">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25c1.1.37 2.3.57 3.6.57a1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.6a1 1 0 0 1-.25 1z"/></svg>
+        </button>
+        <span></span>
+      </div>
+      <p class="lat" id="lat"></p>
+      <p class="note" id="note" role="alert"></p>
+    </section>
+
+    <aside class="log">
+      <h2>Conversation</h2>
+      <div id="feed" role="log" aria-live="polite">
+        <p class="empty" id="empty">Start the call and the conversation appears here, live.</p>
+      </div>
+    </aside>
+  </main>
+
+<script>
+const CONFIG = { company: "Shinko", agent: "Vikash", role: "Sales assistant · speaks Hinglish", showLatency: true };
+
+const $ = (id) => document.getElementById(id);
+const btn = $("call"), muteBtn = $("mute"), statusEl = $("status"), timerEl = $("timer"),
+      feed = $("feed"), emptyEl = $("empty"), latEl = $("lat"), noteEl = $("note"), cv = $("wave");
+$("company").textContent = CONFIG.company; $("agent").textContent = CONFIG.agent;
+$("role").textContent = CONFIG.role; $("initial").textContent = CONFIG.agent[0];
+document.title = "Talk to " + CONFIG.agent;
+
+const NOISE_SUPPRESSION = false; // A/B this: aggressive suppression can hurt ASR
+const SILENCE_MS = 650;     // pause that ends your turn
+const MIN_SPEECH_MS = 250;  // ignore clicks and short noises
+const BARGE_MS = 220;       // speech needed to interrupt
+
+let live = false, muted = false, state = "idle", stream, ctx, analyser, botAn, buf;
+let recorder, chunks, heard, speechMs, lastVoice, speechStart, threshold, mime;
+let audioEl, abortCtl, timerId, startedAt, bargeSince;
+let callId, tEnd, queue = [], playing = false, streamDone = false, started = 0, firstPlayed = false, reply = "";
+let userBub = null, botBub = null, typingEl = null;
+
+/* ---------- UI helpers ---------- */
+const LABELS = { idle: "Tap the green button to call", calibrating: "Connecting…", listening: "Listening",
+                 thinking: "Thinking…", speaking: CONFIG.agent + " is speaking" };
+function setState(s, text) {
+  state = s;
+  document.body.dataset.state = s;
+  statusEl.textContent = text || (muted && s === "listening" ? "Muted" : LABELS[s]);
+  s === "thinking" ? showTyping() : hideTyping();
+}
+function note(msg) { noteEl.textContent = msg; clearTimeout(note.t); note.t = setTimeout(() => (noteEl.textContent = ""), 7000); }
+const clock = () => { const t = Math.floor((Date.now() - startedAt) / 1000);
+  return String(Math.floor(t / 60)).padStart(2, "0") + ":" + String(t % 60).padStart(2, "0"); };
+function bubble(cls, text) {
+  const d = document.createElement("div"); d.className = "msg " + cls; d.textContent = text;
+  hideTyping(); feed.append(d); emptyEl.hidden = true; feed.scrollTop = feed.scrollHeight; return d;
+}
+function showTyping() {
+  if (typingEl) return;
+  typingEl = document.createElement("div"); typingEl.className = "msg bot typing"; typingEl.innerHTML = "<i></i><i></i><i></i>";
+  feed.append(typingEl); emptyEl.hidden = true; feed.scrollTop = feed.scrollHeight;
+}
+function hideTyping() { typingEl?.remove(); typingEl = null; }
+
+/* ---------- audio measuring ---------- */
+function rmsOf(an) {
+  an.getFloatTimeDomainData(buf);
+  let s = 0; for (const v of buf) s += v * v;
+  return Math.sqrt(s / buf.length);
+}
+const rms = () => rmsOf(analyser);
+
+/* ---------- waveform + rings (visual only) ---------- */
+const H = new Array(48).fill(0); let frameN = 0, viz = 0;
+function frame() {
+  let target = 0;
+  if (live && analyser) target = state === "speaking" && botAn ? Math.min(1, rmsOf(botAn) * 5) : Math.min(1, rms() * 9);
+  viz += (target - viz) * 0.35;
+  document.documentElement.style.setProperty("--level", viz.toFixed(2));
+  if (++frameN % 3 === 0) { H.push(viz); H.shift(); }
+  const dpr = devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight;
+  if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+  const g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
+  const cs = getComputedStyle(document.body);
+  g.fillStyle = cs.getPropertyValue(state === "speaking" ? "--agent" : live && state !== "thinking" ? "--call" : "--muted");
+  const n = H.length, gap = 4, bw = (w - gap * (n - 1)) / n;
+  H.forEach((v, i) => { const bh = 3 + v * (h - 3); g.beginPath(); g.roundRect(i * (bw + gap), (h - bh) / 2, bw, bh, bw / 2); g.fill(); });
+  requestAnimationFrame(frame);
+}
+
+/* ---------- call lifecycle ---------- */
+async function startCall() {
+  noteEl.textContent = "";
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: NOISE_SUPPRESSION, autoGainControl: true },
+    });
+  } catch {
+    note("Microphone blocked. Allow it in your browser and try again."); return;
+  }
+  callId = crypto.randomUUID();
+  await fetch("/reset?call_id=" + callId, { method: "POST" });
+  ctx = new AudioContext();
+  analyser = ctx.createAnalyser(); analyser.fftSize = 1024;
+  ctx.createMediaStreamSource(stream).connect(analyser);
+  botAn = ctx.createAnalyser(); botAn.fftSize = 1024; botAn.connect(ctx.destination);
+  buf = new Float32Array(1024);
+  mime = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/mp4";
+
+  live = true; muted = false; startedAt = Date.now();
+  document.body.classList.add("live");
+  btn.setAttribute("aria-label", "End call");
+  muteBtn.disabled = false; muteBtn.setAttribute("aria-pressed", "false");
+  feed.querySelectorAll(".msg").forEach((m) => m.remove()); emptyEl.hidden = false;
+  userBub = botBub = null; latEl.textContent = ""; timerEl.textContent = " · 00:00";
+  timerId = setInterval(() => (timerEl.textContent = " · " + clock()), 500);
+
+  setState("calibrating");
+  threshold = await calibrate();
+  beginListening();
+  loop();
+}
+
+async function calibrate() {           // measure room noise for 0.5s
+  let peak = 0; const end = performance.now() + 500;
+  while (performance.now() < end) { peak = Math.max(peak, rms()); await new Promise((r) => setTimeout(r, 30)); }
+  return Math.max(0.025, peak * 2.2);
+}
+
+function beginListening() {
+  heard = false; speechMs = 0; chunks = [];
+  recorder = new MediaRecorder(stream, { mimeType: mime });
+  recorder.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+  recorder.start();
+  setState("listening");
+}
+
+function endTurn() {
+  const rec = recorder, keep = speechMs >= MIN_SPEECH_MS;
+  tEnd = performance.now();
+  rec.onstop = () => keep ? send(new Blob(chunks, { type: mime })) : beginListening();
+  rec.stop();
+  setState("thinking");
+}
+
+async function send(blob) {
+  abortCtl = new AbortController();
+  queue = []; playing = false; streamDone = false; started = 0; firstPlayed = false; reply = "";
+  const fd = new FormData();
+  fd.append("call_id", callId);
+  fd.append("audio", blob, "turn." + (mime.includes("mp4") ? "mp4" : "webm"));
+  try {
+    const r = await fetch("/turn", { method: "POST", body: fd, signal: abortCtl.signal });
+    if (!r.ok) throw new Error(r.status);
+    const reader = r.body.getReader(), dec = new TextDecoder();
+    let acc = "";
+    for (;;) {                                   // one JSON message per line
+      const { done, value } = await reader.read();
+      if (done) break;
+      acc += dec.decode(value, { stream: true });
+      let i;
+      while ((i = acc.indexOf("\n")) >= 0) { onMsg(JSON.parse(acc.slice(0, i))); acc = acc.slice(i + 1); }
+    }
+  } catch (e) {
+    if (e.name === "AbortError" || !live) return;
+    note("Something went wrong. Check the server terminal for details.");
+    beginListening();
+  }
+}
+
+function onMsg(m) {
+  if (!live) return;
+  if (m.type === "user") {
+    if (userBub) { userBub.textContent = m.text; userBub.classList.remove("pending"); } else bubble("you", m.text);
+    userBub = botBub = null;
+  } else if (m.type === "empty") beginListening();
+  else if (m.type === "wait") {                  // you weren't finished: keep listening
+    if (userBub) userBub.textContent = m.text + " …"; else userBub = bubble("you pending", m.text + " …");
+    beginListening();
+  } else if (m.type === "sentence") {
+    reply += (reply ? " " : "") + m.text;
+    if (!botBub) botBub = bubble("bot", ""); botBub.textContent = reply;
+    feed.scrollTop = feed.scrollHeight;
+    queue.push(m.audio); if (!playing) playNext();
+  } else if (m.type === "done") { streamDone = true; if (!playing && !queue.length) finishSpeaking(); }
+}
+
+function playNext() {                            // play sentences back to back
+  const b = queue.shift();
+  if (!b) { playing = false; if (streamDone) finishSpeaking(); return; }
+  playing = true; started++; bargeSince = 0;
+  const url = URL.createObjectURL(new Blob([Uint8Array.from(atob(b), (c) => c.charCodeAt(0))], { type: "audio/mpeg" }));
+  audioEl = new Audio(url);
+  try { ctx.createMediaElementSource(audioEl).connect(botAn); } catch {}   // lets the waveform follow her voice
+  audioEl.onended = () => { URL.revokeObjectURL(url); playNext(); };
+  if (!firstPlayed) {                            // time-to-first-audio as the caller feels it
+    firstPlayed = true;
+    const ms = Math.round(performance.now() - tEnd);
+    fetch("/metric?ttfa_ms=" + ms, { method: "POST" });
+    if (CONFIG.showLatency) latEl.textContent = "Replied in " + (ms / 1000).toFixed(1) + " s";
+  }
+  setState("speaking");
+  audioEl.play();
+}
+
+function finishSpeaking() { if (live) beginListening(); }
+
+function interrupt() {                           // caller talked over her
+  audioEl?.pause(); queue = []; abortCtl?.abort(); botBub?.classList.add("cut");
+  fetch(`/interrupt?call_id=${callId}&n=${started}`, { method: "POST" });
+  beginListening();
+}
+
+function loop() {
+  if (!live) return;
+  const level = rms(), now = performance.now();
+  if (state === "listening") {
+    if (level > threshold) {
+      if (!heard) { heard = true; speechStart = now; }
+      lastVoice = now; speechMs = now - speechStart;
+    } else if (heard && now - lastVoice > SILENCE_MS) endTurn();
+  } else if (state === "speaking") {      // barge-in: talk over her to interrupt
+    if (level > threshold * 1.6) {
+      bargeSince ||= now;
+      if (now - bargeSince > BARGE_MS) { interrupt(); heard = true; speechStart = lastVoice = now; }
+    } else bargeSince = 0;
+  }
+  requestAnimationFrame(loop);
+}
+
+function endCall() {
+  live = false; clearInterval(timerId);
+  abortCtl?.abort(); audioEl?.pause(); queue = [];
+  if (recorder?.state === "recording") { recorder.onstop = null; recorder.stop(); }
+  stream?.getTracks().forEach((t) => t.stop()); ctx?.close();
+  document.body.classList.remove("live");
+  btn.setAttribute("aria-label", "Start call");
+  muteBtn.disabled = true; muteBtn.setAttribute("aria-pressed", "false");
+  setState("idle", "Call ended");
+}
+
+btn.addEventListener("click", () => (live ? endCall() : startCall()));
+muteBtn.addEventListener("click", () => {
+  muted = !muted;
+  stream?.getAudioTracks().forEach((t) => (t.enabled = !muted));
+  muteBtn.setAttribute("aria-pressed", String(muted));
+  muteBtn.setAttribute("aria-label", muted ? "Unmute microphone" : "Mute microphone");
+  setState(state);
+});
+frame();
+</script>
+</body>
+</html>
