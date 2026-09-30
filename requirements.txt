@@ -1,0 +1,6 @@
+elevenlabs
+openai
+fastapi
+uvicorn
+python-multipart
+python-dotenv
